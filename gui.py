@@ -1,7 +1,7 @@
 import sys
 import subprocess
-from PyQt5.QtWidgets import QApplication, QWidget, QVBoxLayout, QTableWidget, QTableWidgetItem, QPushButton, QHBoxLayout, QMessageBox
-from PyQt5.QtCore import Qt
+from PyQt5.QtWidgets import QApplication, QWidget, QVBoxLayout, QTableWidget, QTableWidgetItem, QPushButton, QMessageBox, QHeaderView
+from PyQt5.QtCore import Qt, QSize
 
 class ServiceManagerApp(QWidget):
     def __init__(self):
@@ -10,7 +10,7 @@ class ServiceManagerApp(QWidget):
 
     def initUI(self):
         self.setWindowTitle('Service Manager')
-        self.setGeometry(100, 100, 800, 600)
+        self.showMaximized()
 
         layout = QVBoxLayout()
 
@@ -38,14 +38,20 @@ class ServiceManagerApp(QWidget):
             start_stop_btn = QPushButton('Stop' if status == 'running' else 'Start')
             start_stop_btn.setCheckable(True)
             start_stop_btn.setChecked(status == 'running')
+            start_stop_btn.setMinimumSize(QSize(100, 30))
             start_stop_btn.clicked.connect(lambda checked, s=service_name: self.toggle_service(checked, s, 'start', 'stop'))
             self.table.setCellWidget(row, 3, start_stop_btn)
 
             enable_disable_btn = QPushButton('Disable' if 'enabled' in status else 'Enable')
             enable_disable_btn.setCheckable(True)
             enable_disable_btn.setChecked('enabled' in status)
+            enable_disable_btn.setMinimumSize(QSize(100, 30))
             enable_disable_btn.clicked.connect(lambda checked, s=service_name: self.toggle_service(checked, s, 'enable', 'disable'))
             self.table.setCellWidget(row, 4, enable_disable_btn)
+
+        self.table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
+        self.table.resizeColumnsToContents()
+        self.table.resizeRowsToContents()
 
     def get_services(self):
         command = ['systemctl', 'list-units', '--type=service', '--all', '--no-pager']
@@ -54,12 +60,12 @@ class ServiceManagerApp(QWidget):
         services = []
         lines = result.stdout.splitlines()
         for line in lines[1:]:
-            parts = line.split()
-            if len(parts) < 4:
+            parts = line.split(maxsplit=4)
+            if len(parts) < 5:
                 continue
             service_name = parts[0]
-            description = ' '.join(parts[4:])
             status = parts[3]
+            description = parts[4] if len(parts) > 4 else ""
             services.append((service_name, description, status))
         return services
 
