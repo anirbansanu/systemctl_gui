@@ -1,7 +1,10 @@
 import sys
 import subprocess
-from PyQt5.QtWidgets import QApplication, QWidget, QVBoxLayout, QTableWidget, QTableWidgetItem, QPushButton, QMessageBox, QHeaderView
-from PyQt5.QtCore import Qt, QSize
+from PyQt5.QtWidgets import (
+    QApplication, QWidget, QVBoxLayout, QTableWidget, QTableWidgetItem, 
+    QPushButton, QMessageBox, QHeaderView, QLineEdit, QLabel, QHBoxLayout
+)
+from PyQt5.QtCore import Qt, QSize, QSortFilterProxyModel
 
 class ServiceManagerApp(QWidget):
     def __init__(self):
@@ -12,14 +15,26 @@ class ServiceManagerApp(QWidget):
         self.setWindowTitle('Service Manager')
         self.showMaximized()
 
-        layout = QVBoxLayout()
+        main_layout = QVBoxLayout()
 
+        # Search bar
+        search_layout = QHBoxLayout()
+        search_label = QLabel("Search Service:")
+        self.search_input = QLineEdit()
+        self.search_input.textChanged.connect(self.filter_services)
+        search_layout.addWidget(search_label)
+        search_layout.addWidget(self.search_input)
+        main_layout.addLayout(search_layout)
+
+        # Table for services
         self.table = QTableWidget()
-        layout.addWidget(self.table)
+        main_layout.addWidget(self.table)
 
-        self.setLayout(layout)
+        self.setLayout(main_layout)
 
         self.populate_table()
+        self.table.horizontalHeader().sectionClicked.connect(self.sort_table)
+        self.sort_order = Qt.AscendingOrder
 
     def populate_table(self):
         services = self.get_services()
@@ -35,9 +50,9 @@ class ServiceManagerApp(QWidget):
             self.table.setItem(row, 1, QTableWidgetItem(description))
             self.table.setItem(row, 2, QTableWidgetItem(status))
 
-            start_stop_btn = QPushButton('Stop' if status == 'running' else 'Start')
+            start_stop_btn = QPushButton('Stop' if 'running' in status else 'Start')
             start_stop_btn.setCheckable(True)
-            start_stop_btn.setChecked(status == 'running')
+            start_stop_btn.setChecked('running' in status)
             start_stop_btn.setMinimumSize(QSize(100, 30))
             start_stop_btn.clicked.connect(lambda checked, s=service_name: self.toggle_service(checked, s, 'start', 'stop'))
             self.table.setCellWidget(row, 3, start_stop_btn)
@@ -71,20 +86,33 @@ class ServiceManagerApp(QWidget):
 
     def toggle_service(self, checked, service_name, action_enable, action_disable):
         action = action_enable if checked else action_disable
-        self.run_command(['sudo', 'systemctl', action, service_name])
-        self.populate_table()
+        result = self.run_command(['sudo', 'systemctl', action, service_name])
+        if result:
+            self.populate_table()
 
     def run_command(self, command):
         try:
             result = subprocess.run(command, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
             self.show_message(result.stdout)
+            return True
         except subprocess.CalledProcessError as e:
             self.show_message(e.stderr)
+            return False
 
     def show_message(self, message):
         msg_box = QMessageBox(self)
         msg_box.setText(message)
         msg_box.exec_()
+
+    def filter_services(self):
+        filter_text = self.search_input.text().lower()
+        for row in range(self.table.rowCount()):
+            service_name = self.table.item(row, 0).text().lower()
+            self.table.setRowHidden(row, filter_text not in service_name)
+
+    def sort_table(self, index):
+        self.table.sortItems(index, self.sort_order)
+        self.sort_order = Qt.DescendingOrder if self.sort_order == Qt.AscendingOrder else Qt.AscendingOrder
 
 if __name__ == '__main__':
     app = QApplication(sys.argv)
