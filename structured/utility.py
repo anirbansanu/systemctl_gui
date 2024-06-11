@@ -1,6 +1,7 @@
 import subprocess
 from PyQt5.QtWidgets import QMessageBox
 import qdarkstyle
+from PyQt5.QtCore import Qt
 
 
 def run_command(command):
